@@ -9,7 +9,8 @@ fashion_mnist = keras.datasets.fashion_mnist
 input_shape = train_images.shape # (60000,28,28)
 input_shape = (train_images.shape[0], input_shape[1]*input_shape[2],)
 
-train_images = train_images.astype('float32')
+test_images = train_images.astype('float32')
+test_images = test_images.astype('float32')
 
 #Vanilla AUTOENCODER
 lat_dim = 20
