@@ -31,7 +31,7 @@ outputs = decoder([encoder(inputs)])
 VanillaAE = tf.keras.Model(inputs, outputs)
 
 #COMPILE
-VanillaAE.compile(optimizer='mse', loss=loss, metrics=['accuracy'])
+VanillaAE.compile(optimizer='adam', loss='mse', metrics=['accuracy'])
 #TRAIN
 epoch_no, batch_size = 5, 60
 train_model = VanillaAE.fit(train_images, train_images, epochs=epoch_no, batch_size=batch_size)
