@@ -9,7 +9,7 @@ input_shape = train_images.shape  # (60000,28,28)
 input_shape = (train_images.shape[0], input_shape[1], input_shape[2],)
 train_images = train_images.astype('float32')
 test_images = test_images.astype('float32')
-# Encoder
+
 class autoencoder(tf.keras.Model):
     def __init__(self):
         super(autoencoder, self).__init__()
@@ -41,16 +41,16 @@ VanillaAE.compile(optimizer='adam', loss='mse', metrics=['accuracy'])
 
 #------TRAIN ----
 epoch_no, batch_size = 1, 120
-# train_model = VanillaAE.fit(train_images, train_images, epochs=epoch_no, batch_size=batch_size)
+train_model = VanillaAE.fit(train_images, train_images, epochs=epoch_no, batch_size=batch_size)
 
-# with open('VanillaAE_v{i:d}summary.txt'.format(i=1),'w') as fh:
-#     VanillaAE.summary(print_fn=lambda x: fh.write(x + '\n'))
+with open('VanillaAE_v{i:d}summary.txt'.format(i=1),'w') as fh:
+     VanillaAE.summary(print_fn=lambda x: fh.write(x + '\n'))
 
 #tf.keras.utils.plot_model(VanillaAE, to_file='VanillaAEv{i:d}_2.png'.format(i=1),show_shapes=True)
 
 file_weights = 'weights.h1'
-# VanillaAE.save_weights(file_weights)
-VanillaAE.load_weights(file_weights)
+VanillaAE.save_weights(file_weights)
+# VanillaAE.load_weights(file_weights)
 test_loss, test_acc, = VanillaAE.evaluate(test_images, test_images, verbose=2)
 print('Test accuracy:', test_acc)
 
