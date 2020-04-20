@@ -60,25 +60,19 @@ class autoencoder(tf.keras.Model):
 # ---------------------------------------------------------------------------------------------
 ConvAE = autoencoder(latent_dim=24)
 ConvAE.compile(optimizer='adam', loss='mse', metrics=['accuracy'])
-# ----Architecture version
-ver = 15
-# ---
+
 keras.utils.plot_model(ConvAE, to_file='ConvAE_v{i:d}.png'.format(i=ver), show_shapes=True)
 
 # --DATASET---
-# fashion_mnist = keras.datasets.fashion_mnist
-# (train_images, _), (test_images, _) = fashion_mnist.load_data()
 digits_mnist = keras.datasets.mnist
 (train_images, _), (test_images, _) = digits_mnist.load_data()
-# input_shape = train_images.shape  # (60000,28,28)
-# input_shape = (train_images.shape[0], input_shape[1], input_shape[2],)
 train_images = train_images.reshape(train_images.shape[0], 28, 28, 1).astype('float32')
 test_images = test_images.reshape(test_images.shape[0], 28, 28, 1).astype('float32')
 # Normalizing the images to the range of [0., 1.]
 train_images /= 255.
 test_images /= 255.
 # --------------------------------------------------------------------
-# ----VISUALIZATION-----------------
+# ----VISUALIZATION--TENSORBOARD---------------
 import datetime
 log_dir = "logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 from tensorboard import program
@@ -97,13 +91,13 @@ epoch_no, batch_size = 5, 100
 train_model = ConvAE.fit(train_images, train_images, epochs=epoch_no, batch_size=batch_size,
                          callbacks=[tb_callback, cp_callback])
 
-file_weights = 'weights.h1'
+file_weights = 'weights_ConvAE.h1'
 ConvAE.save_weights(file_weights)
 # ConvAE.load_weights(file_weights)
 # ---Save the entire model as a SavedModel---
-ConvAE.save('saved_model/my_model')
+ConvAE.save('saved_model/ConvAE')
 # ---Save Summary to the file------------------------------------
-with open('ConvAE_v{i:d}summary.txt'.format(i=ver), 'w') as fh:
+with open('summary_ConvAE.txt', 'w') as fh:
     # Pass the file handle in as a lambda function to make it callable
     ConvAE.summary(print_fn=lambda x: fh.write(x + '\n'))
 # ----EVALUATE----------
@@ -128,5 +122,5 @@ while i <= (len(ax) - 1):
     ax[i + 1].imshow(predictions[i])
     i = i + 2
 
-plt.savefig('digits{i:d}.png'.format(i=ver))
+plt.savefig('digits.png')
 plt.show()
