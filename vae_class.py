@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import time
 from IPython import display
 import datetime
+import os
 from tensorboard import program
 
 
@@ -63,15 +64,22 @@ class VAE(tf.keras.Model):
             return probs
         return logits
 
-
+    # PLOT MODEL and PRINT SUMMARY
+    def plotModel(self):
+        tf.keras.utils.plot_model(self.encoder, to_file='encoder.png')
+        tf.keras.utils.plot_model(self.decoder, to_file='decoder.png')
+        with open('encoder_summary.txt', 'w') as fh:
+            self.encoder.summary(print_fn=lambda x: fh.write(x + '\n'))
+        with open('decoder_summary.txt', 'w') as fh:
+            self.decoder.summary(print_fn=lambda x: fh.write(x + '\n'))
 # ---------------------------------------------------------------------------------------------
 optimizer = tf.keras.optimizers.Adam(1e-4)
 
 
-def log_normal_pdf(sample, z_mean, z_logvar, raxis=1):
+def log_normal_pdf(sample, mean, logvar, raxis=1):
     log2pi = tf.math.log(2. * np.pi)
     return tf.reduce_sum(
-        -.5 * ((sample - z_mean) ** 2. * tf.exp(-z_logvar) + z_logvar + log2pi),
+        -.5 * ((sample - mean) ** 2. * tf.exp(-logvar) + logvar + log2pi),
         axis=raxis)
 
 
@@ -79,13 +87,15 @@ def log_normal_pdf(sample, z_mean, z_logvar, raxis=1):
 def compute_loss(model, x):
     z_mean, z_logvar = model.encode(x)
     z = model.reparametrize(z_mean, z_logvar)
-    x_logit = model.decode(z)
+    y = model.decode(z)
 
-    cross_ent = tf.nn.sigmoid_cross_entropy_with_logits(logits=x_logit, labels=x)
-    logpx_z = -tf.reduce_sum(cross_ent, axis=[1, 2, 3])
+    # cross_ent = tf.nn.cross_entropy_with_logits(logits=x_logit, labels=x)
+    mse = tf.keras.losses.mse(x, y)
+    # logpx_z = tf.reduce_sum(cross_ent, axis=[1, 2, 3])
+    logpx_z = -tf.reduce_sum(mse) # minus because minimizing inherently, but in fact I need to maximize in the expression below
     logpz = log_normal_pdf(z, 0., 0.)
     logqz_x = log_normal_pdf(z, z_mean, z_logvar)
-    return -tf.reduce_mean(logpx_z + logpz - logqz_x)  # logpz - logqz_x = kl divergence
+    return -tf.reduce_mean(logpx_z + logpz - logqz_x)  # logqz_x - logpz = kl divergence, expression inside () we want to maximize thus minus
 
 
 @tf.function
@@ -95,21 +105,17 @@ def compute_apply_gradients(model, x, optimizer):
     gradients = tape.gradient(loss, model.trainable_variables)
     optimizer.apply_gradients(zip(gradients, model.trainable_variables))
 
-
 epochs = 5
 latent_dim = 24
 num_examples_to_generate = 16
 
 random_vector_for_generation = tf.random.normal(shape=[num_examples_to_generate, latent_dim])
 model = VAE(latent_dim)
-# PLOT MODEL and PRINT SUMMARY
-tf.keras.utils.plot_model(model.encoder, to_file='encoder.png')
-tf.keras.utils.plot_model(model.decoder, to_file='decoder.png')
-with open('encoder_summary.txt','w') as fh:
-    model.encoder.summary(print_fn=lambda x: fh.write(x + '\n'))
-with open('decoder_summary.txt','w') as fh:
-    model.decoder.summary(print_fn=lambda x: fh.write(x + '\n'))
 
+tf.saved_model.save(model, 'vae_save/')
+# model = tf.saved_model.load('logs/models/')
+
+# model.plotModel()
 
 def generate_and_save_images(model, epoch, test_input):
     predictions = model.sample(test_input)
@@ -121,10 +127,11 @@ def generate_and_save_images(model, epoch, test_input):
         plt.axis('off')
         plt.tight_layout()
     plt.savefig('image_at_epoch_{:04d}.png'.format(epoch))
-    plt.show()
+    # plt.show()
 
 
-# generate_and_save_images(model, 0, random_vector_for_generation)
+generate_and_save_images(model, 0, random_vector_for_generation)
+
 # TENSORBOARD
 current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 log_dir = "logs/gradient_tape/"
@@ -132,10 +139,10 @@ train_log_dir = log_dir + current_time + '/train'
 test_log_dir = log_dir + current_time + '/test'
 train_summary_writer = tf.summary.create_file_writer(train_log_dir)
 test_summary_writer = tf.summary.create_file_writer(test_log_dir)
-
-tb = program.TensorBoard()
-tb.configure(argv=[None, '--logdir', 'logs/gradient_tape/'])
-url = tb.launch() # does not work, launch it from terminal typing tensorboard --logdir 'logs/gradient_tape/'
+tf.summary.trace_on(graph=True, profiler=True)
+# tb = program.TensorBoard()
+# tb.configure(argv=[None, '--logdir', 'logs/gradient_tape/'])
+# url = tb.launch() # does not work, launch it from terminal typing tensorboard --logdir 'logs/gradient_tape/'
 
 # --DATASET----
 digits_mnist = tf.keras.datasets.mnist
@@ -154,6 +161,22 @@ TEST_BUF = 10000
 train_dataset = tf.data.Dataset.from_tensor_slices(train_images).shuffle(TRAIN_BUF).batch(BATCH_SIZE)
 test_dataset = tf.data.Dataset.from_tensor_slices(test_images).shuffle(TRAIN_BUF).batch(BATCH_SIZE)
 # ---
+# CHECKPOINTS
+ckpt = tf.train.Checkpoint(optimizer=optimizer, model=model)
+manager = tf.train.CheckpointManager(ckpt,'./tf_ckpts',max_to_keep=3)
+ckpt.restore(manager.latest_checkpoint)
+if manager.latest_checkpoint:
+    print('Restored from {}', format(manager.latest_checkpoint))
+else:
+    print("Initializing from scratch.")
+
+ # ---
+# WEIGHTS
+if os.path.exists('vae_weights.h5'):
+    model.load_weights('vae_weights.h5')
+    print('Previous weights loaded.')
+else:
+    print('No previous weights.')
 
 # --TRAINING-----
 for epoch in range(1, epochs + 1):
@@ -166,15 +189,16 @@ for epoch in range(1, epochs + 1):
         tf.summary.scalar('loss', -loss.result(), step=epoch)
     end_time = time.time()
 
-    if epoch % 1 == 0:
+    if epoch % 1 == 0:  # that means test after every epoch
         loss = tf.keras.metrics.Mean()
         for test_x in test_dataset:
             loss(compute_loss(model, test_x))
-        elbo = - loss.result()  # evidence lower bound (maximized during training)
-        tf.summary.trace_on(graph=True, profiler=True)
+        elbo = -loss.result()  # evidence lower bound (maximized during training)
         with test_summary_writer.as_default():
             tf.summary.scalar('loss', elbo, step=epoch)
         display.clear_output(wait=False)
         print('Epoch: {}, Test set ELBO: {}, '
               'time elapse for current epoch {}'.format(epoch, elbo, end_time - start_time))
         generate_and_save_images(model, epoch, random_vector_for_generation)
+
+model.save_weights('vae_weights.h5', overwrite=True)
