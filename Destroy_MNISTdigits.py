@@ -52,4 +52,6 @@ for train_x_orig, label in zip(train_images, train_label):
     destroys.append(train_x)
 
 destroys = np.asarray(destroys)
+# prepare dataset for training
+train_dataset = tf.data.Dataset.from_tensor_slices((train_images, destroys))
 save_images(train_images, destroys)
