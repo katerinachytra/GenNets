@@ -24,16 +24,18 @@ def destroy(train_x, label_x):
 def save_images(orig, destroyed):
     fig = plt.figure(figsize=(4, 4))
     for i in range(0,16,2):
+        
         plt.subplot(4, 4, i+1)
         plt.imshow(orig[i, :, :], cmap='gray')
         plt.axis('off')
-        plt.tight_layout()
         plt.title('orig')
+        
         plt.subplot(4, 4, i + 2)
         plt.imshow(destroyed[i, :, :], cmap='gray')
-        plt.axis('off')
-        plt.tight_layout()
+        plt.axis('off')   
         plt.title('destroyed')
+        
+    plt.tight_layout()
     plt.savefig('orig-destroyed.png')
 
 # --DATASET----
